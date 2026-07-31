@@ -27,7 +27,7 @@ const port = process.env.PORT || 8080;
 
 app.use(
   cors({
-    origin: ["https://studynook-self.vercel.app"],
+    origin: process.env.CLIENT_URL,
     optionsSuccessStatus: 200,
   }),
 );
@@ -43,10 +43,10 @@ if (!uri) {
 }
 
 const CLIENT_URL =
-  process.env.CLIENT_URL || "https://studynook-self.vercel.app";
+  process.env.CLIENT_URL || "http://localhost:3000";
 
 // --------------------------------------------------
-// MongoDB
+// MongoDB https://studynook-self.vercel.app
 // --------------------------------------------------
 
 const client = new MongoClient(uri, {
