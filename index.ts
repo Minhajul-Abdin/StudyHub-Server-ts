@@ -26,8 +26,6 @@ const app = express();
 
 app.use(express.json());
 
-const port = process.env.PORT || 8080;
-
 app.use(
   cors({
     origin: ["https://studyhub-ashy-ten.vercel.app"],
@@ -505,21 +503,12 @@ async function run(): Promise<void> {
 // Run Server
 // ------------------------------------------------------------
 
-run().catch(console.dir);
+run().catch((error) => {
+  console.error("Server startup error:", error);
+});
 
-// ------------------------------------------------------------
-// Root Route
-// ------------------------------------------------------------
-
-app.get(
-  "/",
-  (req: Request, res: Response): void => {
-    res.send("Hello World!");
-  },
-);
-
-// ------------------------------------------------------------
-// Start Server
-// ------------------------------------------------------------
+app.get("/", (req: Request, res: Response): void => {
+  res.send("Hello World!");
+});
 
 export default app;
