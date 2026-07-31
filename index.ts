@@ -28,7 +28,7 @@ const port = process.env.PORT || 8080;
 
 app.use(
   cors({
-    origin: ["https://studynook-self.vercel.app"],
+    origin: ["https://studyhub-ashy-ten.vercel.app"],
     optionsSuccessStatus: 200,
   }),
 );
