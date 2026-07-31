@@ -13,6 +13,8 @@ import {
   ServerApiVersion,
 } from "mongodb";
 
+
+
 import {
   createRemoteJWKSet,
   jwtVerify,
@@ -520,9 +522,4 @@ app.get(
 // Start Server
 // ------------------------------------------------------------
 
-app.listen(port, () => {
-  console.log(
-    `Example app listening on port ${port}`,
-  );
-});
-
+export default app;
