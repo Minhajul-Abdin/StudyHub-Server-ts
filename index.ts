@@ -1,3 +1,4 @@
+
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -13,8 +14,6 @@ import {
   ServerApiVersion,
 } from "mongodb";
 
-
-
 import {
   createRemoteJWKSet,
   jwtVerify,
@@ -26,9 +25,11 @@ const app = express();
 
 app.use(express.json());
 
+const port = process.env.PORT || 8080;
+
 app.use(
   cors({
-    origin: ["https://studyhub-ashy-ten.vercel.app"],
+    origin: ["https://studynook-self.vercel.app"],
     optionsSuccessStatus: 200,
   }),
 );
@@ -37,8 +38,14 @@ app.use(
 // JWT
 // ------------------------------------------------------------
 
+const clientUrl = process.env.CLIENT_URL;
+
+if (!clientUrl) {
+  throw new Error("CLIENT_URL is not defined");
+}
+
 const JWKS = createRemoteJWKSet(
-  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+  new URL(`${clientUrl}/api/auth/jwks`),
 );
 
 // ------------------------------------------------------------
@@ -48,11 +55,11 @@ const JWKS = createRemoteJWKSet(
 const uri = process.env.MONGOBD_URI;
 
 if (!uri) {
-  throw new Error(
-    "MONGOBD_URI is not defined in environment variables",
-  );
+  throw new Error("MONGOBD_URI is not defined");
 }
 
+// Create a MongoClient with a MongoClientOptions object
+// to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -65,6 +72,11 @@ const client = new MongoClient(uri, {
 // Route Parameter Types
 // ------------------------------------------------------------
 
+interface UserIdParams {
+  [key: string]: string;
+  userId: string;
+}
+
 interface RoomIdParams {
   [key: string]: string;
   roomId: string;
@@ -75,13 +87,9 @@ interface BookingIdParams {
   id: string;
 }
 
-interface UserIdParams {
-  [key: string]: string;
-  userId: string;
-}
 
 // ------------------------------------------------------------
-// Logger Middleware
+// Logger
 // ------------------------------------------------------------
 
 const logger = (
@@ -93,16 +101,12 @@ const logger = (
   next();
 };
 
-app.use(logger);
-
 // ------------------------------------------------------------
-// Verify Token Middleware
+// Verify Token
 // ------------------------------------------------------------
 
-const varifyToken = async <
-  P extends Record<string, string>
->(
-  req: Request<P>,
+const varifyToken = async (
+  req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
@@ -124,13 +128,19 @@ const varifyToken = async <
       ),
     );
 
-    const { payload } = await jwtVerify(token, JWKS);
+    const { payload } = await jwtVerify(
+      token,
+      JWKS,
+    );
 
     (req as any).user = payload;
 
     next();
   } catch (error) {
-    console.error("Token validation failed:", error);
+    console.error(
+      "Token validation failed:",
+      error,
+    );
 
     res.status(401).json({
       message: "Unauthorize",
@@ -144,6 +154,12 @@ const varifyToken = async <
 
 async function run(): Promise<void> {
   try {
+    // Connect the client to the server
+    // await client.connect();
+
+    // Send a ping to confirm a successful connection
+    // await client.db("admin").command({ ping: 1 });
+
     const db = client.db("studynookdb");
 
     const roomCollection = db.collection("rooms");
@@ -165,7 +181,8 @@ async function run(): Promise<void> {
 
         console.log(data);
 
-        const result = await roomCollection.insertOne(data);
+        const result =
+          await roomCollection.insertOne(data);
 
         res.send(result);
       },
@@ -186,7 +203,7 @@ async function run(): Promise<void> {
         let cursor;
 
         if (search) {
-          cursor = roomCollection.find({
+          cursor = await roomCollection.find({
             $or: [
               {
                 room_name: {
@@ -200,7 +217,8 @@ async function run(): Promise<void> {
           cursor = roomCollection.find();
         }
 
-        const result = await cursor.toArray();
+        const result =
+          await cursor.toArray();
 
         res.send(result);
       },
@@ -216,9 +234,11 @@ async function run(): Promise<void> {
         req: Request,
         res: Response,
       ): Promise<void> => {
-        const cursor = roomCollection.find().limit(6);
+        const cursor =
+          roomCollection.find().limit(6);
 
-        const result = await cursor.toArray();
+        const result =
+          await cursor.toArray();
 
         res.send(result);
       },
@@ -228,19 +248,20 @@ async function run(): Promise<void> {
     // My Booking Page API
     // ------------------------------------------------------------
 
-    app.get(
+    app.get<UserIdParams>(
       "/mybookings/:userId",
       async (
-        req: Request<UserIdParams>,
-        res: Response,
+        req,
+        res,
       ): Promise<void> => {
         const { userId } = req.params;
 
-        const result = await bookingCollection
-          .find({
-            userId: userId,
-          })
-          .toArray();
+        const result =
+          await bookingCollection
+            .find({
+              userId: userId,
+            })
+            .toArray();
 
         res.send(result);
       },
@@ -250,23 +271,24 @@ async function run(): Promise<void> {
     // Create Booking
     // ------------------------------------------------------------
 
-    app.patch(
+    app.patch<RoomIdParams>(
       "/mybookings/:roomId",
       async (
-        req: Request<RoomIdParams>,
-        res: Response,
+        req,
+        res,
       ): Promise<void> => {
         const { roomId } = req.params;
 
         const bookingData = req.body;
 
-        const room = await roomCollection.findOne({
-          _id: new ObjectId(roomId),
-        });
+        const room =
+          await roomCollection.findOne({
+            _id: new ObjectId(roomId),
+          });
 
         if (!room) {
           res.status(404).json({
-            message: "Room not found",
+            message: "Room not found ",
           });
           return;
         }
@@ -285,12 +307,13 @@ async function run(): Promise<void> {
           },
         );
 
-        const result = await bookingCollection.insertOne({
-          ...bookingData,
-          status: "Approved",
-          roomId: room._id,
-          bookAt: new Date(),
-        });
+        const result =
+          await bookingCollection.insertOne({
+            ...bookingData,
+            status: "Approved",
+            roomId: room._id,
+            bookAt: new Date(),
+          });
 
         res.send(result);
       },
@@ -300,19 +323,20 @@ async function run(): Promise<void> {
     // My Listing Page API
     // ------------------------------------------------------------
 
-    app.get(
+    app.get<UserIdParams>(
       "/mylisting/:userId",
       async (
-        req: Request<UserIdParams>,
-        res: Response,
+        req,
+        res,
       ): Promise<void> => {
         const { userId } = req.params;
 
-        const result = await roomCollection
-          .find({
-            userId: userId,
-          })
-          .toArray();
+        const result =
+          await roomCollection
+            .find({
+              userId: userId,
+            })
+            .toArray();
 
         res.send(result);
       },
@@ -322,11 +346,11 @@ async function run(): Promise<void> {
     // Get Single Room
     // ------------------------------------------------------------
 
-    app.get(
+    app.get<RoomIdParams>(
       "/rooms/:roomId",
       async (
-        req: Request<RoomIdParams>,
-        res: Response,
+        req,
+        res,
       ): Promise<void> => {
         const { roomId } = req.params;
 
@@ -336,7 +360,8 @@ async function run(): Promise<void> {
           _id: new ObjectId(roomId),
         };
 
-        const result = await roomCollection.findOne(query);
+        const result =
+          await roomCollection.findOne(query);
 
         console.log(result);
 
@@ -348,23 +373,24 @@ async function run(): Promise<void> {
     // Create Booking From Room
     // ------------------------------------------------------------
 
-    app.patch(
+    app.patch<RoomIdParams>(
       "/rooms/:roomId",
       async (
-        req: Request<RoomIdParams>,
-        res: Response,
+        req,
+        res,
       ): Promise<void> => {
         const { roomId } = req.params;
 
         const bookingData = req.body;
 
-        const room = await roomCollection.findOne({
-          _id: new ObjectId(roomId),
-        });
+        const room =
+          await roomCollection.findOne({
+            _id: new ObjectId(roomId),
+          });
 
         if (!room) {
           res.status(404).json({
-            message: "Room not found",
+            message: "Room not found ",
           });
           return;
         }
@@ -383,10 +409,11 @@ async function run(): Promise<void> {
           },
         );
 
-        const result = await bookingCollection.insertOne({
-          ...bookingData,
-          bookAt: new Date(),
-        });
+        const result =
+          await bookingCollection.insertOne({
+            ...bookingData,
+            bookAt: new Date(),
+          });
 
         res.send(result);
       },
@@ -396,76 +423,79 @@ async function run(): Promise<void> {
     // Cancel Booking
     // ------------------------------------------------------------
 
-   app.patch<BookingIdParams>(
-  "/mybooking/:id",
-  varifyToken,
-  async (
-    req: Request<BookingIdParams>,
-    res: Response,
-  ): Promise<void> => {
-    const { id } = req.params;
+    app.patch<BookingIdParams>(
+      "/mybooking/:id",
+      varifyToken,
+      async (
+        req,
+        res,
+      ): Promise<void> => {
+        const { id } = req.params;
 
-    const booking = await bookingCollection.findOne({
-      _id: new ObjectId(id),
-    });
+        const booking =
+          await bookingCollection.findOne({
+            _id: new ObjectId(id),
+          });
 
-    if (!booking) {
-      res.status(404).send({
-        message: "Booking not found",
-      });
-      return;
-    }
+        if (!booking) {
+          res.status(404).send({
+            message: "Booking not found",
+          });
+          return;
+        }
 
-    const roomId = booking.roomId;
+        const roomId = booking.roomId;
 
-    const result = await bookingCollection.updateOne(
-      {
-        _id: new ObjectId(id),
-      },
-      {
-        $set: {
-          status: "Canceled",
-        },
+        const result =
+          await bookingCollection.updateOne(
+            {
+              _id: new ObjectId(id),
+            },
+            {
+              $set: {
+                status: "Canceled",
+              },
+            },
+          );
+
+        await roomCollection.updateOne(
+          {
+            _id: new ObjectId(roomId),
+          },
+          {
+            $inc: {
+              bookCount: -1,
+            },
+          },
+        );
+
+        res.send(result);
       },
     );
-
-    await roomCollection.updateOne(
-      {
-        _id: new ObjectId(roomId),
-      },
-      {
-        $inc: {
-          bookCount: -1,
-        },
-      },
-    );
-
-    res.send(result);
-  },
-);
 
     // ------------------------------------------------------------
     // Update Room
     // ------------------------------------------------------------
 
-    app.put(
+    app.put<RoomIdParams>(
       "/rooms/:roomId",
       async (
-        req: Request<RoomIdParams>,
-        res: Response,
+        req,
+        res,
       ): Promise<void> => {
         const { roomId } = req.params;
 
         const updatedData = req.body;
 
-        const result = await roomCollection.updateOne(
-          {
-            _id: new ObjectId(roomId),
-          },
-          {
-            $set: updatedData,
-          },
-        );
+        const result =
+          await roomCollection.updateOne(
+            {
+              _id: new ObjectId(roomId),
+            },
+            {
+              $set: updatedData,
+            },
+          );
 
         res.json(result);
       },
@@ -475,17 +505,18 @@ async function run(): Promise<void> {
     // Delete Room
     // ------------------------------------------------------------
 
-    app.delete(
+    app.delete<RoomIdParams>(
       "/rooms/:roomId",
       async (
-        req: Request<RoomIdParams>,
-        res: Response,
+        req,
+        res,
       ): Promise<void> => {
         const { roomId } = req.params;
 
-        const result = await roomCollection.deleteOne({
-          _id: new ObjectId(roomId),
-        });
+        const result =
+          await roomCollection.deleteOne({
+            _id: new ObjectId(roomId),
+          });
 
         res.json(result);
       },
@@ -495,20 +526,38 @@ async function run(): Promise<void> {
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
   } finally {
+    // Ensures that the client will close when you finish/error
     // await client.close();
   }
 }
 
 // ------------------------------------------------------------
-// Run Server
+// Run
 // ------------------------------------------------------------
 
-run().catch((error) => {
-  console.error("Server startup error:", error);
+run().catch(console.dir);
+
+// ------------------------------------------------------------
+// Root Route
+// ------------------------------------------------------------
+
+app.get(
+  "/",
+  (
+    req: Request,
+    res: Response,
+  ): void => {
+    res.send("Hello World!");
+  },
+);
+
+// ------------------------------------------------------------
+// Start Server
+// ------------------------------------------------------------
+
+app.listen(port, () => {
+  console.log(
+    `Example app listening on port ${port}`,
+  );
 });
 
-app.get("/", (req: Request, res: Response): void => {
-  res.send("Hello World!");
-});
-
-export default app;
