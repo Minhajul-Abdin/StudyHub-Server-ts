@@ -66,14 +66,17 @@ const client = new MongoClient(uri, {
 // ------------------------------------------------------------
 
 interface RoomIdParams {
+  [key: string]: string;
   roomId: string;
 }
 
 interface BookingIdParams {
+  [key: string]: string;
   id: string;
 }
 
 interface UserIdParams {
+  [key: string]: string;
   userId: string;
 }
 
@@ -96,8 +99,10 @@ app.use(logger);
 // Verify Token Middleware
 // ------------------------------------------------------------
 
-const varifyToken = async (
-  req: Request,
+const varifyToken = async <
+  P extends Record<string, string>
+>(
+  req: Request<P>,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
@@ -391,52 +396,53 @@ async function run(): Promise<void> {
     // Cancel Booking
     // ------------------------------------------------------------
 
-    app.patch(
-      "/mybooking/:id",
-      async (
-        req: Request<BookingIdParams>,
-        res: Response,
-      ): Promise<void> => {
-        const { id } = req.params;
+   app.patch<BookingIdParams>(
+  "/mybooking/:id",
+  varifyToken,
+  async (
+    req: Request<BookingIdParams>,
+    res: Response,
+  ): Promise<void> => {
+    const { id } = req.params;
 
-        const booking = await bookingCollection.findOne({
-          _id: new ObjectId(id),
-        });
+    const booking = await bookingCollection.findOne({
+      _id: new ObjectId(id),
+    });
 
-        if (!booking) {
-          res.status(404).send({
-            message: "Booking not found",
-          });
-          return;
-        }
+    if (!booking) {
+      res.status(404).send({
+        message: "Booking not found",
+      });
+      return;
+    }
 
-        const roomId = booking.roomId;
+    const roomId = booking.roomId;
 
-        const result = await bookingCollection.updateOne(
-          {
-            _id: new ObjectId(id),
-          },
-          {
-            $set: {
-              status: "Canceled",
-            },
-          },
-        );
-
-        await roomCollection.updateOne(
-          {
-            _id: new ObjectId(roomId),
-          },
-          {
-            $inc: {
-              bookCount: -1,
-            },
-          },
-        );
-
-        res.send(result);
+    const result = await bookingCollection.updateOne(
+      {
+        _id: new ObjectId(id),
+      },
+      {
+        $set: {
+          status: "Canceled",
+        },
       },
     );
+
+    await roomCollection.updateOne(
+      {
+        _id: new ObjectId(roomId),
+      },
+      {
+        $inc: {
+          bookCount: -1,
+        },
+      },
+    );
+
+    res.send(result);
+  },
+);
 
     // ------------------------------------------------------------
     // Update Room
