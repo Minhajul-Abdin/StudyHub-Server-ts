@@ -27,7 +27,7 @@ const port = process.env.PORT || 8080;
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: [""],
     optionsSuccessStatus: 200,
   }),
 );
