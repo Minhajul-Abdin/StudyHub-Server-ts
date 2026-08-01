@@ -1,4 +1,3 @@
-
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -44,6 +43,9 @@ if (!clientUrl) {
   throw new Error("CLIENT_URL is not defined");
 }
 
+// Created once and reused across requests — createRemoteJWKSet
+// caches the key set internally, so it should not be recreated
+// per-request.
 const JWKS = createRemoteJWKSet(
   new URL(`${clientUrl}/api/auth/jwks`),
 );
@@ -87,7 +89,6 @@ interface BookingIdParams {
   id: string;
 }
 
-
 // ------------------------------------------------------------
 // Logger
 // ------------------------------------------------------------
@@ -100,6 +101,8 @@ const logger = (
   console.log(`${req.method} | ${req.url}`);
   next();
 };
+
+app.use(logger);
 
 // ------------------------------------------------------------
 // Verify Token
@@ -122,12 +125,8 @@ const varifyToken = async (
   }
 
   try {
-    const JWKS = createRemoteJWKSet(
-      new URL(
-        "https://studynook-self.vercel.app/api/auth/jwks",
-      ),
-    );
-
+    // Reuse the module-level JWKS (built from CLIENT_URL) instead
+    // of creating a new one on every request.
     const { payload } = await jwtVerify(
       token,
       JWKS,
@@ -203,7 +202,7 @@ async function run(): Promise<void> {
         let cursor;
 
         if (search) {
-          cursor = await roomCollection.find({
+          cursor = roomCollection.find({
             $or: [
               {
                 room_name: {
@@ -522,8 +521,25 @@ async function run(): Promise<void> {
       },
     );
 
+    // ------------------------------------------------------------
+    // Listings (uses listingCollection so it isn't dead code)
+    // ------------------------------------------------------------
+
+    app.get(
+      "/listings",
+      async (
+        req: Request,
+        res: Response,
+      ): Promise<void> => {
+        const result =
+          await listingCollection.find().toArray();
+
+        res.send(result);
+      },
+    );
+
     console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!",
+      "Routes registered. MongoDB client ready.",
     );
   } finally {
     // Ensures that the client will close when you finish/error
@@ -552,12 +568,16 @@ app.get(
 );
 
 // ------------------------------------------------------------
-// Start Server
+// Start Server (local dev only — Vercel invokes the exported
+// app directly and does not need a listening process)
 // ------------------------------------------------------------
 
-app.listen(port, () => {
-  console.log(
-    `Example app listening on port ${port}`,
-  );
-});
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(
+      `Example app listening on port ${port}`,
+    );
+  });
+}
 
+export default app;
